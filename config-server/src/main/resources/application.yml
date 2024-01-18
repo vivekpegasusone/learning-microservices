@@ -8,7 +8,7 @@ spring:
         git:
           uri: https://github.com/vivekpegasusone/config-store.git
           search-paths:
-            - 'service-configuration/*service'
+            - 'service-config/*service'
           #uri: https://github.com/vivekpegasusone/spring-cloud-config-store
           #search-paths:
           #  - '*service'
