@@ -1,0 +1,14 @@
+server:
+  port: 9192
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate.format_sql: true
+  security:
+    auth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9191
