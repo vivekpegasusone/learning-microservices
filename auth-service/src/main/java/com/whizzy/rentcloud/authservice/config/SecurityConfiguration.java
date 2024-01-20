@@ -91,8 +91,7 @@ public class SecurityConfiguration {
                     new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
             )
         ).oauth2ResourceServer( // Accept access tokens for User Info and/or Client Registration
-                (resourceServer) -> resourceServer.jwt(Customizer.withDefaults()
-            )
+                (resourceServer) -> resourceServer.jwt(Customizer.withDefaults())
         );
         return http.build();
     }
