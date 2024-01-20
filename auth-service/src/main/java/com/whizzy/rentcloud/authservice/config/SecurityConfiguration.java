@@ -15,9 +15,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -27,10 +26,7 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
-import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenClaimsContext;
-import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenClaimsSet;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -39,7 +35,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Configuration
 public class SecurityConfiguration {
@@ -55,67 +53,46 @@ public class SecurityConfiguration {
     private AuthorizationConsentService authorizationConsentService;
 
 
-//    @Bean
-//    @Order(1)
-//    public SecurityFilterChain authServerSecurityFilterChain(HttpSecurity http) throws Exception {
-//        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-//
-//        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
-//                http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
-//
-//        authorizationServerConfigurer
-//                .registeredClientRepository(registeredClientRepository)
-//                .authorizationService(authorizationService)
-//                .authorizationConsentService(authorizationConsentService)
-//                .authorizationServerSettings(authorizationServerSettings())
-////                .tokenGenerator(tokenGenerator)
-//                .clientAuthentication(clientAuthentication -> { })
-//                .authorizationEndpoint(authorizationEndpoint -> { })
-//                .deviceAuthorizationEndpoint(deviceAuthorizationEndpoint -> { })
-//                .deviceVerificationEndpoint(deviceVerificationEndpoint -> { })
-//                .tokenEndpoint(tokenEndpoint -> { })
-//                .tokenIntrospectionEndpoint(tokenIntrospectionEndpoint -> { })
-//                .tokenRevocationEndpoint(tokenRevocationEndpoint -> { })
-//                .authorizationServerMetadataEndpoint(authorizationServerMetadataEndpoint -> { })
-//
-//                // Enable OpenID Connect 1.0
-//                .oidc(oidc -> oidc
-//                        .providerConfigurationEndpoint(providerConfigurationEndpoint -> { })
-//                        .logoutEndpoint(logoutEndpoint -> { })
-//                        .userInfoEndpoint(userInfoEndpoint -> { })
-//                        .clientRegistrationEndpoint(clientRegistrationEndpoint -> { })
-//                );
-//
-//        http.exceptionHandling(
-//                // Redirect to the login page when not authenticated from the authorization endpoint
-//            (exceptions) -> exceptions.defaultAuthenticationEntryPointFor(
-//                    new LoginUrlAuthenticationEntryPoint("/login"),
-//                    new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-//            )
-//        ).oauth2ResourceServer( // Accept access tokens for User Info and/or Client Registration
-//                (resourceServer) -> resourceServer.jwt(Customizer.withDefaults()
-//            )
-//        );
-//        return http.build();
-//    }
-
     @Bean
     @Order(1)
     public SecurityFilterChain authServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
+                http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
+
+        authorizationServerConfigurer
                 .registeredClientRepository(registeredClientRepository)
                 .authorizationService(authorizationService)
                 .authorizationConsentService(authorizationConsentService)
                 .authorizationServerSettings(authorizationServerSettings())
-                .oidc(Customizer.withDefaults());
+//                .tokenGenerator(tokenGenerator)
+                .clientAuthentication(clientAuthentication -> { })
+                .authorizationEndpoint(authorizationEndpoint -> { })
+                .deviceAuthorizationEndpoint(deviceAuthorizationEndpoint -> { })
+                .deviceVerificationEndpoint(deviceVerificationEndpoint -> { })
+                .tokenEndpoint(tokenEndpoint -> { })
+                .tokenIntrospectionEndpoint(tokenIntrospectionEndpoint -> { })
+                .tokenRevocationEndpoint(tokenRevocationEndpoint -> { })
+                .authorizationServerMetadataEndpoint(authorizationServerMetadataEndpoint -> { })
+
+                // Enable OpenID Connect 1.0
+                .oidc(oidc -> oidc
+                        .providerConfigurationEndpoint(providerConfigurationEndpoint -> { })
+                        .logoutEndpoint(logoutEndpoint -> { })
+                        .userInfoEndpoint(userInfoEndpoint -> { })
+                        .clientRegistrationEndpoint(clientRegistrationEndpoint -> { })
+                );
+
         http.exceptionHandling(
                 // Redirect to the login page when not authenticated from the authorization endpoint
-                (exceptions) -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
-                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-                )
+            (exceptions) -> exceptions.defaultAuthenticationEntryPointFor(
+                    new LoginUrlAuthenticationEntryPoint("/login"),
+                    new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
+            )
+        ).oauth2ResourceServer( // Accept access tokens for User Info and/or Client Registration
+                (resourceServer) -> resourceServer.jwt(Customizer.withDefaults()
+            )
         );
         return http.build();
     }
@@ -165,41 +142,21 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    public OAuth2TokenCustomizer<OAuth2TokenClaimsContext> accessTokenCustomizer() {
-        return context -> {
-            OAuth2TokenClaimsSet.Builder claims = context.getClaims();
-            // Customize claims
-
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
+        return (context) -> {
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                Authentication principal = context.getPrincipal();
+                Set<String> authorities = principal.getAuthorities()
+                        .stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .collect(Collectors.toSet());
+                context.getClaims().claim("scope", authorities);
+            }
         };
     }
-
-//    @Bean
-//    public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
-//        return (context) -> {
-//            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
-//                context.getClaims().claims((claims) -> {
-//                    claims.put("claim-1", "value-1");
-//                    claims.put("claim-2", "value-2");
-//                });
-//            }
-//        };
-//    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-//    @Bean
-//    public UserDetailsService userDetailsService() {
-//        UserDetails user = User.withUsername("vivek")
-//                .password("$2a$10$KILEYUqUFb.54Svww4s9d.Ic6IwHPQRGF8lSojmhBrAoKwHM8LgWS")
-//                .authorities("read").build();
-//        return new InMemoryUserDetailsManager(user);
-//    }
-
-//    @Bean
-//    public PasswordEncoder passwordEncoder() {
-//        return NoOpPasswordEncoder.getInstance();
-//    }
 }
